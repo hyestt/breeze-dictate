@@ -121,8 +121,19 @@ final class AppModel: ObservableObject {
         play("Tink")
     }
 
+    /// 放開按鍵的瞬間最後一兩個字常還沒說完，多錄一段再停。
+    private static let tailSeconds = 0.45
+
     private func endRecording() {
-        guard status == .recording, let rec = recorder.stop() else { return }
+        guard status == .recording else { return }
+        status = .transcribing  // 先改狀態，避免緩衝期間又被按一次
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.tailSeconds) { [weak self] in
+            MainActor.assumeIsolated { self?.finishRecording() }
+        }
+    }
+
+    private func finishRecording() {
+        guard let rec = recorder.stop() else { status = .idle; return }
         Log.write("recorded \(String(format: "%.1f", rec.duration))s")
         play("Pop")
         guard rec.duration >= 0.3 else {
@@ -130,7 +141,6 @@ final class AppModel: ObservableObject {
             status = .idle
             return
         }
-        status = .transcribing
         Task {
             defer { try? FileManager.default.removeItem(at: rec.url) }
             do {
