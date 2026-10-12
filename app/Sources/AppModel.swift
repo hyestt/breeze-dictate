@@ -55,7 +55,6 @@ final class AppModel: ObservableObject {
     func start() {
         Log.write("app start perms=\(PermissionState.current())")
         hotkey.start()
-        recorder.prepare()
         engine.start()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshPermissions() }
@@ -143,6 +142,10 @@ final class AppModel: ObservableObject {
         }
         Task {
             defer { try? FileManager.default.removeItem(at: rec.url) }
+            guard Self.peak(of: rec.url) > 0.01 else {
+                fail("沒有收到聲音，請確認麥克風是哪一個裝置")
+                return
+            }
             do {
                 let text = try await engine.transcribe(rec.url)
                 Log.write("transcribed chars=\(text.count)")
@@ -155,6 +158,16 @@ final class AppModel: ObservableObject {
                 fail(error.localizedDescription)
             }
         }
+    }
+
+    /// 錄音最大振幅（0 到 1）。輸入裝置換掉時會錄到整段靜音，這裡攔下來。
+    private static func peak(of url: URL) -> Float {
+        guard let d = try? Data(contentsOf: url), d.count > 44 else { return 1 }
+        var m: Int32 = 0
+        d.dropFirst(44).withUnsafeBytes { raw in
+            for v in raw.bindMemory(to: Int16.self) { m = max(m, Int32(v).magnitude > 32767 ? 32767 : Int32(v).magnitude) }
+        }
+        return Float(m) / 32767
     }
 
     private func fail(_ message: String) {
