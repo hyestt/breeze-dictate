@@ -40,6 +40,7 @@ final class AppModel: ObservableObject {
     private let hotkey = HotkeyMonitor()
     private let recorder = Recorder()
     private var pollTimer: Timer?
+    private var pressedAt = Date()
 
     init() {
         Paths.ensureSupport()
@@ -116,16 +117,25 @@ final class AppModel: ObservableObject {
         guard status == .idle else { return }
         guard canDictate else { showSetup?(); return }
         guard recorder.start() else { fail("無法開始錄音"); return }
+        pressedAt = Date()
         status = .recording
         play("Tink")
     }
 
     /// 放開按鍵的瞬間最後一兩個字常還沒說完，多錄一段再停。
     private static let tailSeconds = 0.45
+    /// 按住短於這個時間視為點一下，用來喚醒麥克風，不送去辨識。
+    private static let minHoldSeconds = 0.35
 
     private func endRecording() {
         guard status == .recording else { return }
+        let held = Date().timeIntervalSince(pressedAt)
         status = .transcribing  // 先改狀態，避免緩衝期間又被按一次
+        guard held >= Self.minHoldSeconds else {
+            if let rec = recorder.stop() { try? FileManager.default.removeItem(at: rec.url) }
+            status = .idle
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.tailSeconds) { [weak self] in
             MainActor.assumeIsolated { self?.finishRecording() }
         }
