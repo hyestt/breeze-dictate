@@ -107,7 +107,7 @@ ditto -c -k --keepParent "$APP" "$ZIP"
 rm -rf "$BUILD/icon"
 # 已經安裝到「應用程式」時一併更新，免得兩份版本不一致。
 INSTALLED="/Applications/BreezeDictate.app"
-if [[ -d "$INSTALLED" ]]; then
+if [[ -d "$INSTALLED" && -z "${BREEZE_NO_INSTALL:-}" ]]; then
   pkill -f "$INSTALLED/Contents/MacOS/BreezeDictate" 2>/dev/null || true
   sleep 1
   rm -rf "$INSTALLED"
