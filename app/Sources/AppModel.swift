@@ -45,8 +45,9 @@ final class AppModel: ObservableObject {
     }
 
     func start() {
-        Log.write("app start")
+        Log.write("app start perms=\(PermissionState.current())")
         hotkey.start()
+        recorder.prepare()
         engine.start()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshPermissions() }
@@ -109,6 +110,7 @@ final class AppModel: ObservableObject {
 
     private func endRecording() {
         guard status == .recording, let rec = recorder.stop() else { return }
+        Log.write("recorded \(String(format: "%.1f", rec.duration))s")
         play("Pop")
         guard rec.duration >= 0.3 else {
             try? FileManager.default.removeItem(at: rec.url)
@@ -120,6 +122,7 @@ final class AppModel: ObservableObject {
             defer { try? FileManager.default.removeItem(at: rec.url) }
             do {
                 let text = try await engine.transcribe(rec.url)
+                Log.write("transcribed chars=\(text.count)")
                 if !text.isEmpty, !Paster.paste(text) {
                     fail("缺少輔助使用授權，文字已複製到剪貼簿")
                     return

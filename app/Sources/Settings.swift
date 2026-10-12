@@ -45,7 +45,7 @@ struct Settings: Codable, Equatable {
     var hotkeyIsModifier = true
     var hotkeyLabel = "右 Option"
     var launchAtLogin = false
-    var playSound = true
+    var playSound = false
 
     init() {}
 

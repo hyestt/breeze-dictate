@@ -92,7 +92,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
-codesign --force --deep -s - "$APP"
+# 有固定憑證就用它簽署，授權（麥克風、輸入監控、輔助使用）在重建與更新後才不會失效；沒有就退回 ad-hoc。
+SIGN_ID="${BREEZE_SIGN_ID:-BreezeDictate Local Signing}"
+if security find-identity -p codesigning | grep -q "$SIGN_ID"; then
+  codesign --force --deep -s "$SIGN_ID" "$APP"
+else
+  codesign --force --deep -s - "$APP"
+fi
 codesign -v "$APP"
 
 ZIP="$BUILD/BreezeDictate-$VERSION.zip"
