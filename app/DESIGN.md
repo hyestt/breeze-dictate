@@ -8,8 +8,9 @@
 
 | 路徑 | 擁有者 | 內容 |
 |---|---|---|
-| `SUP/settings.json` | Swift | `{"hotkeyKeyCode":61,"hotkeyIsModifier":true,"hotkeyLabel":"右 Option","launchAtLogin":false,"playSound":true}` |
+| `SUP/settings.json` | Swift | `{"hotkeyKeyCode":61,"hotkeyIsModifier":true,"hotkeyLabel":"右 Option","launchAtLogin":false,"playSound":true,"punctuation":false}` |
 | `SUP/vocabulary.json` | Swift 寫、引擎讀 | `[{"target":"Claude","variants":["cloud","克勞德"]}]`（陣列，順序即顯示順序） |
+| `SUP/punct-model` | bootstrap.sh（`punctuation` 模式） | 標點模型 Qwen3-1.7B-4bit（約 1 GB），可由設定視窗移除 |
 | `SUP/venv`, `SUP/model`, `SUP/bin/uv` | bootstrap.sh | 引擎環境 |
 | `App/Contents/Resources/{engine.py,bootstrap.sh,requirements.txt,default_vocabulary.json}` | 已存在（除 default_vocabulary.json 外） | 隨 App 附帶 |
 
@@ -17,11 +18,12 @@
 
 ## 引擎合約（已實作、已實測）
 
-- 啟動：`SUP/venv/bin/python -u Resources/engine.py --model SUP/model --vocab SUP/vocabulary.json`，stdin/stdout 為 JSON 行，stderr 丟棄或寫 log。
+- 啟動：`SUP/venv/bin/python -u Resources/engine.py --model SUP/model --vocab SUP/vocabulary.json --settings SUP/settings.json`，stdin/stdout 為 JSON 行，stderr 丟棄或寫 log。
 - 先收到 `{"ready":true}`（載入約 3–10 秒），之後每行請求 `{"id":n,"wav":"/abs/path.wav"}`，回 `{"id":n,"text":"…","seconds":0.12}` 或 `{"id":n,"error":"…"}`。
 - WAV 必須是 16 kHz、單聲道。引擎每次請求都會檢查 vocabulary.json 的修改時間並重載，所以改詞彙不需重啟。
+- 標點：引擎用 mtime 快取讀 `settings.json` 的 `punctuation`。為真且 `SUP/punct-model` 存在時，啟動時載入 mlx-lm 模型並常駐，辨識後補標點。少於 4 個字不補。守門：移除標點並轉 s2tw、轉小寫後與原文不同（有字被改動）就回傳原文。載入或推論失敗只寫 stderr，照常回傳沒有標點的文字。stdin/stdout 協定不變。
 - 引擎行程意外結束要自動重啟（最多連續 3 次，間隔遞增），並在選單顯示狀態。
-- bootstrap：`/bin/zsh Resources/bootstrap.sh SUP Resources`，stdout 逐行 `STEP n/4 …`，最後 `DONE`；結束碼非 0 代表失敗，最後一行是原因。
+- bootstrap：`/bin/zsh Resources/bootstrap.sh SUP Resources [core|punctuation]`，stdout 逐行 `STEP n/m …`（`core` 為 4 步，`punctuation` 為 2 步：安裝 mlx-lm==0.32.0、下載標點模型；`punctuation` 要求引擎環境已存在），最後 `DONE`；結束碼非 0 代表失敗，最後一行是原因。
 
 ## 行為
 
@@ -32,10 +34,12 @@
 5. 開始、結束錄音可播放系統音效（Tink／Pop），由 `playSound` 控制。
 6. 選單列圖示（SF Symbols）：待機 `mic`、錄音中 `mic.fill`（紅）、辨識中 `waveform`、引擎未就緒或缺授權 `exclamationmark.triangle`。選單項目：狀態文字、設定…、結束。
 
+7. 自動加標點（`punctuation`，預設關）：`punctuation` 改變時 Swift 呼叫 `engine.restart()`（關閉時釋放模型記憶體），其他設定改變不重啟。開啟前模型未安裝就先跑 `punctuation` 模式的安裝，成功才寫入 true，失敗維持 false 並顯示原因。
+
 ## 視窗（SwiftUI，繁體中文，台灣用語）
 
 - **首次設定**（`engineReady == false` 或缺授權時自動出現）：三步。①「安裝語音引擎」按鈕，顯示 STEP 進度與失敗訊息、可重試；②「授權」逐項顯示麥克風、輔助使用、輸入監控的狀態（已允許／未允許），每項有按鈕：麥克風呼叫 `AVCaptureDevice.requestAccess`，其餘開對應系統設定頁並呼叫 `AXIsProcessTrustedWithOptions`／`CGRequestListenEventAccess`；每秒輪詢更新；③「試試看」：說明按住哪個鍵。全部完成後可關閉。
-- **設定**（選單「設定…」）：分頁「一般」（快捷鍵錄製、開機自動啟動 `SMAppService.mainApp`、音效開關、授權狀態）、「詞彙」（表格：正確寫法＋常聽錯寫法〔逗號分隔〕；新增、刪除、編輯；寫入即存檔；附一行說明「例：Claude ← cloud, 克勞德」）、「關於」（版本、模型名稱與授權、專案網址 https://github.com/hyestt/breeze-dictate）。
+- **設定**（選單「設定…」）：分頁「一般」（快捷鍵錄製、開機自動啟動 `SMAppService.mainApp`、音效開關、自動加標點、授權狀態）。「自動加標點」列：模型未安裝時開關旁顯示「需額外下載約 1 GB」，打開會安裝並顯示 STEP 進度與失敗原因；已安裝時顯示「移除標點模型（釋放約 1 GB）」，按下刪除 `SUP/punct-model` 並關閉設定；另有一行說明模型只加標點、有字被改動會自動退回無標點版本、「詞彙」（表格：正確寫法＋常聽錯寫法〔逗號分隔〕；新增、刪除、編輯；寫入即存檔；附一行說明「例：Claude ← cloud, 克勞德」）、「關於」（版本、模型名稱與授權、專案網址 https://github.com/hyestt/breeze-dictate）。
 - 開視窗時 `NSApp.setActivationPolicy(.regular)`，全部關閉後切回 `.accessory`。
 
 ## 結構要求
