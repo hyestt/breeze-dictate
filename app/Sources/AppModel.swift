@@ -165,7 +165,7 @@ final class AppModel: ObservableObject {
         guard let d = try? Data(contentsOf: url), d.count > 44 else { return 1 }
         var m: Int32 = 0
         d.dropFirst(44).withUnsafeBytes { raw in
-            for v in raw.bindMemory(to: Int16.self) { m = max(m, Int32(v).magnitude > 32767 ? 32767 : Int32(v).magnitude) }
+            for v in raw.bindMemory(to: Int16.self) { m = max(m, abs(Int32(v))) }
         }
         return Float(m) / 32767
     }
