@@ -5,7 +5,7 @@
 啟動完成會先印 {"ready": true}。
 --settings 指向 settings.json 時，punctuation 為 true 且同資料夾有 punct-model 就在辨識後補標點。
 """
-import argparse, json, os, re, sys, time
+import argparse, difflib, json, os, re, sys, time
 
 import numpy as np
 import soundfile as sf
@@ -61,7 +61,7 @@ PUNCT_MIN_CHARS = 4
 PUNCT_SYS = ("你是中文標點修復器。使用者給你一段語音辨識出來的文字，裡面可能夾雜英文。"
              "你只能加上標點符號（，。？！、：；），不可以增加、刪除或修改任何一個字，"
              "也不可以翻譯英文。直接輸出修好的那一段，不要加任何說明。")
-PUNCT_CHARS = "，。？！、：；「」（）,.?!;:\"'()… \n"
+PUNCT_CHARS = "，。？！、：；,.?!;:"
 cc_tw = OpenCC("s2tw")
 _settings_mtime, _punct_wanted = None, False
 _punct = None          # (model, tokenizer, generate, sampler) 載入成功後保留
@@ -108,7 +108,46 @@ def punctuator():
 
 
 def _bare(s):
-    return re.sub("[%s]" % re.escape(PUNCT_CHARS), "", cc_tw.convert(s)).lower()
+    """只留會影響語意的字元，標點與空白不算。"""
+    return "".join(c for c in cc_tw.convert(s) if c not in PUNCT_CHARS and not c.isspace()).lower()
+
+
+def merge_punctuation(src, out):
+    """以原文為準逐字對齊，只採用模型加進來的標點。
+
+    這個模型常把一個字換成標點（「接下來」變成「，下來」）。整段丟棄會讓長句完全
+    補不到標點，所以改成還原被動到的字、只留標點。回傳結果必定與原文逐字相同。
+    """
+    ops = difflib.SequenceMatcher(None, src, out, autojunk=False).get_opcodes()
+    if difflib.SequenceMatcher(None, src, out, autojunk=False).ratio() < 0.7:
+        return src  # 模型重寫或翻譯了整段，標點的位置已不可信
+
+    def split_punct(seg):
+        """把模型那段拆成「原字之前」與「原字之後」的標點。"""
+        head = [c for c in seg if c in PUNCT_CHARS]
+        for i, c in enumerate(seg):
+            if c not in PUNCT_CHARS:
+                return "".join(x for x in seg[:i] if x in PUNCT_CHARS), \
+                       "".join(x for x in seg[i:] if x in PUNCT_CHARS)
+        return "".join(head), ""
+
+    pieces = []
+    for k, (op, i1, i2, j1, j2) in enumerate(ops):
+        if op in ("equal", "delete"):
+            pieces.append(src[i1:i2])
+        elif op == "insert":
+            # 只收前後都對齊的插入，漏字旁邊的標點位置不可信。
+            clean = (k == 0 or ops[k - 1][0] == "equal") and (k == len(ops) - 1 or ops[k + 1][0] == "equal")
+            if clean:
+                pieces.append("".join(c for c in out[j1:j2] if c in PUNCT_CHARS))
+        elif i2 - i1 <= 2 and (i2 - i1 == 1 or any(c not in PUNCT_CHARS for c in out[j1:j2])):
+            # 整段只換成標點時只接受單字，多字多半是漏字，標點位置不可信。
+            before, after = split_punct(out[j1:j2])
+            pieces += [before, src[i1:i2], after]
+        else:
+            pieces.append(src[i1:i2])
+    merged = "".join(pieces)
+    return merged if _bare(merged) == _bare(src) else src
 
 
 def add_punctuation(text):
@@ -117,9 +156,7 @@ def add_punctuation(text):
     p = tok.apply_chat_template(msgs, add_generation_prompt=True, enable_thinking=False)
     out = generate(m, tok, prompt=p, max_tokens=len(text) + 60, verbose=False,
                    sampler=sampler).split("</think>")[-1].strip()
-    out = cc_tw.convert(out)
-    # 守門：任何一個字被改動就退回原文。
-    return out if _bare(out) == _bare(text) else text
+    return merge_punctuation(text, cc_tw.convert(out))
 
 
 def punctuate(text):
