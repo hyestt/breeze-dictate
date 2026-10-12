@@ -1,6 +1,12 @@
 import AppKit
 import ServiceManagement
 
+enum PunctuationInstall: Equatable {
+    case idle
+    case installing(String)
+    case failed(String)
+}
+
 enum DictationStatus: Equatable {
     case idle, recording, transcribing
     case error(String)
@@ -23,6 +29,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var permissions = PermissionState.current()
     @Published private(set) var isCapturingHotkey = false
     @Published private(set) var loginItemError: String?
+    @Published private(set) var punctuationInstall = PunctuationInstall.idle
+    @Published private(set) var punctuationInstalled = Engine.punctuationInstalled
 
     var showSetup: (() -> Void)?
     var closeSetup: (() -> Void)?
@@ -65,6 +73,11 @@ final class AppModel: ObservableObject {
         case .notInstalled, .failed: return true
         default: return !permissions.allGranted
         }
+    }
+
+    private var isEngineInstalling: Bool {
+        if case .installing = engineState { return true }
+        return false
     }
 
     var canDictate: Bool { engineState == .ready && permissions.allGranted }
@@ -169,6 +182,37 @@ final class AppModel: ObservableObject {
 
     func restartEngine() { engine.restart() }
 
+    // MARK: 標點模型
+
+    /// 開啟前先確認模型已安裝；安裝成功才寫入設定，失敗則維持關閉並顯示原因。
+    func setPunctuation(_ on: Bool) {
+        guard on else { settings.punctuation = false; return }
+        if Engine.punctuationInstalled { settings.punctuation = true; return }
+        guard !installer.isRunning else { return }
+        punctuationInstall = .installing("準備安裝…")
+        installer.run(mode: "punctuation", progress: { [weak self] step in
+            self?.punctuationInstall = .installing(step)
+        }, completion: { [weak self] failure in
+            guard let self else { return }
+            self.punctuationInstalled = Engine.punctuationInstalled
+            if let failure {
+                Log.write("punctuation install failed")
+                self.punctuationInstall = .failed(failure)
+            } else {
+                Log.write("punctuation install done")
+                self.punctuationInstall = .idle
+                self.settings.punctuation = true
+            }
+        })
+    }
+
+    func removePunctuationModel() {
+        settings.punctuation = false
+        try? FileManager.default.removeItem(at: Paths.punctModel)
+        punctuationInstalled = Engine.punctuationInstalled
+        punctuationInstall = .idle
+    }
+
     // MARK: 授權與設定
 
     func request(_ kind: PermissionKind) {
@@ -211,6 +255,7 @@ final class AppModel: ObservableObject {
 
     private func applySettings(old: Settings) {
         configureHotkey()
+        if settings.punctuation != old.punctuation, !isEngineInstalling { engine.restart() }
         guard settings.launchAtLogin != old.launchAtLogin else { return }
         do {
             if settings.launchAtLogin { try SMAppService.mainApp.register() }

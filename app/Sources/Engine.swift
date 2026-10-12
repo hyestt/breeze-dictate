@@ -50,6 +50,10 @@ final class Engine {
         return fm.isExecutableFile(atPath: Paths.venvPython.path) && fm.fileExists(atPath: Paths.modelWeights.path)
     }
 
+    static var punctuationInstalled: Bool {
+        FileManager.default.fileExists(atPath: Paths.punctModel.appendingPathComponent("config.json").path)
+    }
+
     func setInstalling(_ step: String) { state = .installing(step) }
     func setFailed(_ reason: String) { state = .failed(reason) }
 
@@ -84,7 +88,8 @@ final class Engine {
         let p = Process()
         p.executableURL = Paths.venvPython
         p.arguments = ["-u", Paths.resources.appendingPathComponent("engine.py").path,
-                       "--model", Paths.model.path, "--vocab", Paths.vocabulary.path]
+                       "--model", Paths.model.path, "--vocab", Paths.vocabulary.path,
+                       "--settings", Paths.settings.path]
         var env = ProcessInfo.processInfo.environment
         env["PYTHONUNBUFFERED"] = "1"
         p.environment = env
@@ -190,7 +195,7 @@ final class Engine {
 final class Installer {
     private(set) var isRunning = false
 
-    func run(progress: @escaping (String) -> Void, completion: @escaping (String?) -> Void) {
+    func run(mode: String = "core", progress: @escaping (String) -> Void, completion: @escaping (String?) -> Void) {
         guard !isRunning else { return }
         isRunning = true
         Paths.ensureSupport()
@@ -198,7 +203,7 @@ final class Installer {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
         p.arguments = [Paths.resources.appendingPathComponent("bootstrap.sh").path,
-                       Paths.support.path, Paths.resources.path]
+                       Paths.support.path, Paths.resources.path, mode]
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = pipe

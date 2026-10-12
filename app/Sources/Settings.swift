@@ -14,6 +14,7 @@ enum Paths {
     static var venvPython: URL { support.appendingPathComponent("venv/bin/python") }
     static var model: URL { support.appendingPathComponent("model", isDirectory: true) }
     static var modelWeights: URL { model.appendingPathComponent("model.safetensors") }
+    static var punctModel: URL { support.appendingPathComponent("punct-model", isDirectory: true) }
     static var appLog: URL { support.appendingPathComponent("app.log") }
     static var engineLog: URL { support.appendingPathComponent("engine.log") }
 
@@ -46,6 +47,7 @@ struct Settings: Codable, Equatable {
     var hotkeyLabel = "右 Option"
     var launchAtLogin = false
     var playSound = false
+    var punctuation = false
 
     init() {}
 
@@ -58,6 +60,7 @@ struct Settings: Codable, Equatable {
         hotkeyLabel = (try? c.decodeIfPresent(String.self, forKey: .hotkeyLabel)) ?? d.hotkeyLabel
         launchAtLogin = (try? c.decodeIfPresent(Bool.self, forKey: .launchAtLogin)) ?? d.launchAtLogin
         playSound = (try? c.decodeIfPresent(Bool.self, forKey: .playSound)) ?? d.playSound
+        punctuation = (try? c.decodeIfPresent(Bool.self, forKey: .punctuation)) ?? d.punctuation
     }
 
     static func load() -> Settings {

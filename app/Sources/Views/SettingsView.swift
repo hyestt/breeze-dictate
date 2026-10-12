@@ -33,11 +33,45 @@ private struct GeneralTab: View {
             Toggle("開機自動啟動", isOn: $model.settings.launchAtLogin)
             if let e = model.loginItemError { Text(e).font(.caption).foregroundStyle(.red) }
             Toggle("錄音開始與結束播放音效", isOn: $model.settings.playSound)
+            PunctuationRow(model: model)
             Section("授權狀態") {
                 ForEach(PermissionKind.allCases) { PermissionRow(model: model, kind: $0) }
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct PunctuationRow: View {
+    @ObservedObject var model: AppModel
+
+    private var installing: String? {
+        if case .installing(let s) = model.punctuationInstall { return s }
+        return nil
+    }
+
+    var body: some View {
+        let isOn = Binding(get: { model.settings.punctuation || installing != nil },
+                           set: { model.setPunctuation($0) })
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Toggle("自動加標點", isOn: isOn).disabled(installing != nil)
+                if !model.punctuationInstalled && installing == nil {
+                    Text("需額外下載約 1 GB").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let s = installing {
+                HStack(spacing: 6) { ProgressView().controlSize(.small); Text(s).font(.caption) }
+            }
+            if case .failed(let reason) = model.punctuationInstall {
+                Text("安裝失敗：\(reason)").font(.caption).foregroundStyle(.red)
+            }
+            if model.punctuationInstalled && installing == nil {
+                Button("移除標點模型（釋放約 1 GB）") { model.removePunctuationModel() }
+            }
+            Text("模型只加標點，若偵測到有字被改動會自動退回沒有標點的版本。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 
