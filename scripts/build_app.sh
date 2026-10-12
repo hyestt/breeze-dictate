@@ -105,5 +105,15 @@ ZIP="$BUILD/BreezeDictate-$VERSION.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 rm -rf "$BUILD/icon"
+# 已經安裝到「應用程式」時一併更新，免得兩份版本不一致。
+INSTALLED="/Applications/BreezeDictate.app"
+if [[ -d "$INSTALLED" ]]; then
+  pkill -f "$INSTALLED/Contents/MacOS/BreezeDictate" 2>/dev/null || true
+  sleep 1
+  rm -rf "$INSTALLED"
+  ditto "$APP" "$INSTALLED"
+  echo "已更新：$INSTALLED"
+fi
+
 echo "完成：$APP"
 echo "完成：$ZIP"

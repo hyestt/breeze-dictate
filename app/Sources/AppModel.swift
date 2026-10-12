@@ -55,6 +55,8 @@ final class AppModel: ObservableObject {
 
     func start() {
         Log.write("app start perms=\(PermissionState.current())")
+        // App 搬到別的資料夾後，開機項目還指向舊路徑，重新登記一次就會更新。
+        if settings.launchAtLogin { try? SMAppService.mainApp.register() }
         hotkey.start()
         engine.start()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
