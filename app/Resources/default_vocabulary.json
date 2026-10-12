@@ -1,0 +1,45 @@
+[
+  {
+    "target": "Claude",
+    "variants": [
+      "cloud",
+      "clod",
+      "claud",
+      "clawd",
+      "clawed",
+      "klaud",
+      "klaus",
+      "cloude",
+      "clode",
+      "克勞德",
+      "克勞得",
+      "克洛德",
+      "可勞德",
+      "克勞的"
+    ]
+  },
+  {
+    "target": "Claude Code",
+    "variants": [
+      "cloud code",
+      "clod code",
+      "claud code",
+      "克勞德 code"
+    ]
+  },
+  {
+    "target": "pull request",
+    "variants": [
+      "poolrequest",
+      "pool request",
+      "pull requests"
+    ]
+  },
+  {
+    "target": "Orca",
+    "variants": [
+      "oracle",
+      "orka"
+    ]
+  }
+]
