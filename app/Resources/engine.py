@@ -61,6 +61,9 @@ PUNCT_MIN_CHARS = 4
 PUNCT_SYS = ("你是中文標點修復器。使用者給你一段語音辨識出來的文字，裡面可能夾雜英文。"
              "你只能加上標點符號（，。？！、：；），不可以增加、刪除或修改任何一個字，"
              "也不可以翻譯英文。直接輸出修好的那一段，不要加任何說明。")
+# 沒有範例時，模型對連續兩個問句常常一個標點都不加。
+PUNCT_SHOTS = [("我今天去了公司開會討論下一季的預算你有空嗎", "我今天去了公司開會，討論下一季的預算。你有空嗎？"),
+               ("這個功能什麼時候可以上線我想知道進度", "這個功能什麼時候可以上線？我想知道進度。")]
 PUNCT_CHARS = "，。？！、：；,.?!;:"
 cc_tw = OpenCC("s2tw")
 _settings_mtime, _punct_wanted = None, False
@@ -150,13 +153,24 @@ def merge_punctuation(src, out):
     return merged if _bare(merged) == _bare(src) else src
 
 
+# 模型常漏掉句中「嗎」後面的問號。「嗎啡」不是問句，排除。
+MISSING_QUESTION = re.compile(r"嗎(?=[^啡，。？！、：；,.?!;:]|$)")
+
+
+def fix_question_marks(text):
+    return MISSING_QUESTION.sub("嗎？", text)
+
+
 def add_punctuation(text):
     m, tok, generate, sampler = _punct
-    msgs = [{"role": "system", "content": PUNCT_SYS}, {"role": "user", "content": text}]
+    msgs = [{"role": "system", "content": PUNCT_SYS}]
+    for ask, answer in PUNCT_SHOTS:
+        msgs += [{"role": "user", "content": ask}, {"role": "assistant", "content": answer}]
+    msgs.append({"role": "user", "content": text})
     p = tok.apply_chat_template(msgs, add_generation_prompt=True, enable_thinking=False)
     out = generate(m, tok, prompt=p, max_tokens=len(text) + 60, verbose=False,
                    sampler=sampler).split("</think>")[-1].strip()
-    return merge_punctuation(text, cc_tw.convert(out))
+    return fix_question_marks(merge_punctuation(text, cc_tw.convert(out)))
 
 
 def punctuate(text):
