@@ -16,13 +16,34 @@
 
 ## 安裝
 
-1. 到 [Releases](https://github.com/hyestt/breeze-dictate/releases) 下載 `BreezeDictate-<版本>.zip`，解壓縮後拖進「應用程式」。
-2. 第一次開啟：在 Finder 對 App **按右鍵，選「打開」**，再按「打開」。這個 App 沒有 Apple 付費開發者簽章，所以 macOS 會警告一次。
-3. 跟著「首次設定」視窗做：
-   1. 按「開始安裝」，等引擎與模型下載完成。
-   2. 在「輔助使用」與「輸入監控」按「前往授權」，到系統設定打開 BreezeDictate 的開關。麥克風會直接跳出詢問，按「允許」。
-   3. 三項都打勾後，**結束 App 再重新開啟一次**，授權才會生效。
+這個 App 沒有 Apple 付費開發者簽章，所以**自己建置比下載現成檔案順**。自己建的 App 不帶「從網路下載」標記，macOS 不會攔。
+
+需要 Xcode 命令列工具，沒裝的話執行 `xcode-select --install`。
+
+```sh
+git clone https://github.com/hyestt/breeze-dictate
+cd breeze-dictate
+./scripts/build_app.sh
+cp -R build/BreezeDictate.app /Applications/
+open /Applications/BreezeDictate.app
+```
+
+接著跟著「首次設定」視窗做：
+
+1. 按「開始安裝」，等引擎與模型下載完成（約 1 GB，需要幾分鐘）。
+2. 在「輔助使用」與「輸入監控」按「前往授權」，到系統設定打開 BreezeDictate 的開關。麥克風會直接跳出詢問，按「允許」。
+3. 三項都打勾後，**結束 App 再重新開啟一次**，授權才會生效。
 4. 游標放進任何輸入框，按住快捷鍵說話，放開。
+
+### 建立固定簽署憑證（建議）
+
+沒有憑證時，每次重新建置 macOS 都會當成不同的 App，三項授權都要重設一次。建一個本機憑證就不會：
+
+1. 開啟「鑰匙圈存取」，選單「鑰匙圈存取 → 憑證輔助程式 → 建立憑證」。
+2. 名稱填 `BreezeDictate Local Signing`，身分類型選「自簽的根憑證」，憑證類型選「程式碼簽署」，建立。
+3. 重新執行 `./scripts/build_app.sh`，腳本會自動找到並使用它。
+
+憑證只留在你自己的電腦上，不會上傳。
 
 ## 設定
 
