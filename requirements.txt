@@ -1,0 +1,7 @@
+mlx-whisper==0.4.3
+sounddevice
+pynput
+opencc-python-reimplemented
+huggingface_hub
+numpy
+soundfile
