@@ -24,11 +24,15 @@ import re
 MIN_SPAN = 24  # 重覆單位至少這麼多詞才敢砍
 MAX_GAP = 8    # 兩份複本之間容許的連接詞長度，這個用字元算，比較嚴
 
-_WORD = re.compile(r"[A-Za-z0-9]+|[^A-Za-z0-9\s]")
+_WORD = re.compile(r"[A-Za-z0-9_]+|\w")
 
 
 def _words(s):
-    """數詞：中文一個字一個詞，連在一起的英數算一個詞，空白不算。"""
+    """數詞：中文一個字一個詞，連在一起的英數算一個詞，標點與空白都不算。
+
+    標點不算很重要。把點和底線各算一個詞的話，1.2.3 會算成五個詞、
+    config_file_path 會算成五個詞，正常句子的引述就會被撐過門檻。
+    """
     return len(_WORD.findall(s))
 
 
@@ -86,8 +90,16 @@ def deloop(text):
             return text
         start, shift, length = found
         unit = text[start:start + shift]
-        # 整個區段以 shift 為週期。重覆超過一整輪時整個週期都被確認過；只重覆一段
-        # （length < shift）時，週期尾端那個連接詞是跳針的開頭，不算使用者講的話。
-        keep = start + min(shift, length)
+        # 留到第一份複本結束，再砍掉剛好 shift 個字元。被砍掉的那一段裡，位置在
+        # start + shift 之後的每一個字元都逐字等於它前面 shift 個字元，是確定的複本；
+        # 只重覆一段（length < shift）時，前面多出來的那幾個字是連接詞。
+        #
+        # 不可以只留一個週期。連續相同的長度超過一個週期時，多出來的那幾個字也可能是
+        # 下一句的開頭（跳針單位開頭是「然後」，使用者下一句也從「然後」開始），
+        # 分不出來，所以留著。寧可留下半截，也不要吃掉使用者講的字。
         tail = text[start + shift + length:]
-        text = text[:keep] + ("" if _tail_is_debris(tail, unit) else tail)
+        debris = _tail_is_debris(tail, unit)
+        # 但 chunk 以碎屑收尾時，代表跳針一路吐到結尾，後面沒有真的話了，那幾個延伸字
+        # 也是跳針吐出來的，這時只留一個週期。
+        keep = start + (shift if debris and tail else length)
+        text = text[:keep] + ("" if debris else tail)
