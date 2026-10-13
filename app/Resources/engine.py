@@ -193,7 +193,11 @@ def transcribe(audio):
         ctx = next(c for c in (10, 15, 20, 30) if dur <= c)
         r = transcribe_short_with_model(model, chunk, context_seconds=ctx,
                                         sample_len=min(224, int(dur * 8) + 16))
-        parts.append(deloop(r["text"].strip()))
+        raw = r["text"].strip()
+        text = deloop(raw)
+        # 只記長度，使用者講的話不可以進 log。
+        print(f"chunk dur={dur:.1f} raw={len(raw)} deloop={len(text)}", file=sys.stderr, flush=True)
+        parts.append(text)
     return fix_terms(cc.convert("".join(parts)))
 
 
