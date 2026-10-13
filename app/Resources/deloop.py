@@ -80,4 +80,6 @@ def cut_restart(text):
 
 
 def deloop(text):
-    return collapse_loops(cut_restart(text))
+    # collapse_loops 先跑。遇到整段都是同一個字的跳針（靜音時常見）時，cut_restart
+    # 會先切成剛好 MIN_SPAN 個字，剩下的重覆長度就不到門檻，反而砍不乾淨。
+    return cut_restart(collapse_loops(text))
