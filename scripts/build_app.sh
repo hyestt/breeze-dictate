@@ -69,7 +69,7 @@ swiftc -o "$BUILD/icon/make_icon" "$BUILD/icon/make_icon.swift"
 iconutil -c icns "$BUILD/icon/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
 
 echo "組裝 App…"
-cp app/Resources/* "$APP/Contents/Resources/"
+find app/Resources -maxdepth 1 -type f -exec cp {} "$APP/Contents/Resources/" \;
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

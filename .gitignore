@@ -5,3 +5,4 @@ BreezeDictate.app/
 __pycache__/
 .DS_Store
 build/
+__pycache__/
